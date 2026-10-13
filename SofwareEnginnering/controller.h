@@ -18,8 +18,8 @@ void TurnLeft(void);
 void TurnRight(void);
 void Stop(void);
 
-void CleanControl(int enable, int dust);
-void PowerUp(void);
+int PowerUp(void);
+int CleanControl(int enable, int dust);
 
 void MotorInterface(int command);
 void CleanerInterface(int command);

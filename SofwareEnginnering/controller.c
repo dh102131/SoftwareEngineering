@@ -1,3 +1,4 @@
+#define _CRT_SECURE_NO_WARNINGS
 #include <stdio.h>
 #include "controller.h"
 
@@ -144,43 +145,86 @@ void CleanerInterface(int command)
         previousCommand = command;
     }
 }
-
-void PowerUp(void)
+int PowerUp(void)
 {
     int i;
+    int front, left, right, back, dust;
 
-    printf("Power Up: Trigger\n");
-    CleanerInterface(2);
+    printf("Power Up 시작\n");
 
     for (i = 1; i <= 5; i++) {
+        if (i > 1) {
+            printf("\nPower Up Tick %d 센서 입력", i);
+            printf(" (앞 왼쪽 오른쪽 뒤 먼지): ");
+
+            if (scanf("%d %d %d %d %d",
+                &front, &left, &right, &back, &dust) != 5) {
+                printf("입력 오류: Power Up 중단\n");
+                CleanerInterface(0);
+                return -1;
+            }
+
+            if ((front != 0 && front != 1)
+                || (left != 0 && left != 1)
+                || (right != 0 && right != 1)
+                || (back != 0 && back != 1)
+                || (dust != 0 && dust != 1)) {
+                printf("센서 값은 0 또는 1이어야 합니다.\n");
+                CleanerInterface(0);
+                return -1;
+            }
+
+            DetermineObstacleLocation(front, left, right, back);
+            DetermineDustExistence(dust);
+        }
+
+        // 매 틱마다 중간에 장애물을 만날 수 있는 상황을 고려하기 위함
+        if (frontObstacle == 1) {
+            printf("앞 장애물 감지: Power Up 취소\n");
+            CleanerInterface(0);
+            return 1;
+        }
+
+        MoveForward(1);
+        CleanerInterface(2);
+
         printf("Power Up 중... (%d/5 Tick)\n", i);
     }
 
     printf("Power Up 완료\n");
+    return 0;
 }
 
-void CleanControl(int enable, int dust)
+int CleanControl(int enable, int dust)
 {
+    int result;
+
     if (enable == 0) {
         CleanerInterface(0);
+        return 0;
     }
-    else {
-        if (dust == 1) {
-            PowerUp();
-        }
 
-        // 일반 청소, Power Up 완료 후 기본 출력으로 복귀
-        CleanerInterface(1);
+    if (dust == 1) {
+        result = PowerUp();
+
+        if (result != 0) {
+            return result;
+        }
     }
+
+    CleanerInterface(1);
+    return 0;
 }
 
 void Controller(int front, int left, int right, int back, int dust)
 {
     int dustExists;
+    int result;
 
     DetermineObstacleLocation(front, left, right, back);
     dustExists = DetermineDustExistence(dust);
 
+    // state 0 = 전진, 1 = 후진, 2 = 최종 정지
     if (state == 2) {
         Stop();
         CleanControl(0, 0);
@@ -192,7 +236,6 @@ void Controller(int front, int left, int right, int back, int dust)
     if (state == 1) {
         CleanControl(0, 0);
 
-     
         if (leftObstacle == 0) {
             MoveBackward(0);
             TurnLeft();
@@ -216,7 +259,8 @@ void Controller(int front, int left, int right, int back, int dust)
             Stop();
 
             state = 2;
-            printf("후진 중 모든 방향이 막힘. : Final Stop\n");
+            printf("양옆과 뒤가 막힘: Final Stop\n");
+
         }
         else {
             MoveBackward(1);
@@ -225,44 +269,55 @@ void Controller(int front, int left, int right, int back, int dust)
         return;
     }
 
-    //전진 중 앞이 열려 있으면 전진 유지
+    // 전진 중일 때
     if (frontObstacle == 0) {
+        if (dustExists == 0) {
+            MoveForward(1);
+        }
+
+        result = CleanControl(1, dustExists);
+
+        if (result == 0) {
+            return;
+        }
+
+        if (result == -1) {
+            MoveForward(0);
+            Stop();
+            state = 2;
+            return;
+        }
+    }
+
+    MoveForward(0);
+    CleanControl(0, 0);
+
+    if (leftObstacle == 0) {
+        TurnLeft();
+
+        state = 0;
         MoveForward(1);
-        CleanControl(1, dustExists);
+        CleanControl(1, 0);
+
+    }
+    else if (rightObstacle == 0) {
+        TurnRight();
+
+        state = 0;
+        MoveForward(1);
+        CleanControl(1, 0);
 
     }
     else {
-        MoveForward(0);
-        CleanControl(0, 0);
+        Stop();
 
-        if (leftObstacle == 0) {
-            TurnLeft();
-
-            state = 0;
-            MoveForward(1);
-            CleanControl(1, 0);
-
-        }
-        else if (rightObstacle == 0) {
-            TurnRight();
-
-            state = 0;
-            MoveForward(1);
-            CleanControl(1, 0);
-
+        if (backObstacle == 1) {
+            state = 2;
+            printf("모든 방향이 막힘: Final Stop\n");
         }
         else {
-            // 앞,양옆이 막히면 정지 후 뒤를 확인.
-            Stop();
-
-            if (backObstacle == 1) {
-                state = 2;
-                printf("모든 방향이 막힘: Final Stop\n");
-            }
-            else {
-                state = 1;
-                MoveBackward(1);
-            }
+            state = 1;
+            MoveBackward(1);
         }
     }
 }
