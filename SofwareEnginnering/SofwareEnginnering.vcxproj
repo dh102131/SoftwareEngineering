@@ -19,7 +19,6 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="controller.c" />
     <ClCompile Include="main.c" />
   </ItemGroup>
   <ItemGroup>
